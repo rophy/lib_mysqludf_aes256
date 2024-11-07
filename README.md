@@ -44,11 +44,8 @@ mysql> select AES256_DECRYPT(UNHEX('encrypted_hash_string'), '0123456789abcdef01
 
 * Build and installation
 ```bash
-[root@host lib_mysqludf_aes256]$ ./configure \
-        --with-mysql=@MYSQL_PREFIX@ \
-        --with-mysql-config=@MYSQL_PREFIX@/bin/mysql_config
-[root@host lib_mysqludf_aes256]$ make
-[root@host lib_mysqludf_aes256]$ make install
+[root@host lib_mysqludf_aes256]$ tar -zxf build/mariadb-10.6.19-headers.tar.gz
+[root@host lib_mysqludf_aes256]$ docker build -it mariadb .
 ```
 
 Before 1.0.4, you must use --with-mysql-plugins-dir instead of --with-mysql-config options.

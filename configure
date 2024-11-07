@@ -11688,6 +11688,8 @@ do
 	fi
 done
 
+MYSQL_HEADER="-I$(pwd)/include"
+
 # Checks for header files.
 OLD_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$MYSQL_HEADER $CPPFLAGS"
