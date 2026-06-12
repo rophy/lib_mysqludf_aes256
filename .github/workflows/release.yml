@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release tarball
+        run: make release VERSION=${GITHUB_REF_NAME}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/lib_mysqludf_aes256-*.tar.gz
