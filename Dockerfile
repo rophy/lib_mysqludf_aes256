@@ -16,3 +16,4 @@ RUN printf '#!/bin/sh\ncase "$1" in\n  --version) mariadb_config --version;;\n  
     && chmod +x /usr/local/bin/mysql_config
 
 RUN ./configure && make && make install
+COPY docs/aes256_install.sql /docker-entrypoint-initdb.d/

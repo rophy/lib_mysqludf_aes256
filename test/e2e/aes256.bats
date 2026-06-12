@@ -6,12 +6,6 @@ mysql_exec() {
     docker exec "$CONTAINER_NAME" mariadb -u root -N -B -e "$1" 2>&1
 }
 
-setup_file() {
-    # Register UDF functions
-    docker cp docs/aes256_install.sql "$CONTAINER_NAME":/tmp/aes256_install.sql
-    docker exec "$CONTAINER_NAME" mariadb -u root -e "source /tmp/aes256_install.sql"
-}
-
 @test "lib_mysqludf_aes256_info returns version" {
     result=$(mysql_exec "SELECT lib_mysqludf_aes256_info()")
     [ -n "$result" ]
