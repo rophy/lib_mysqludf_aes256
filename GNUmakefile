@@ -18,13 +18,13 @@ test: build ## Build and run e2e tests
 		-p 13306:3306 \
 		$(IMAGE_TAG)
 	@echo "Waiting for MariaDB to be ready..."
-	@for i in $$(seq 1 30); do \
-		docker exec $(CONTAINER_NAME) mariadb -u root -e "SELECT 1" >/dev/null 2>&1 && break; \
+	@for i in $$(seq 1 60); do \
+		docker logs $(CONTAINER_NAME) 2>&1 | grep -q "mariadbd: ready for connections.*port: 3306" && break; \
 		sleep 1; \
 	done
 	@docker exec $(CONTAINER_NAME) mariadb -u root -e "SELECT 1" >/dev/null 2>&1 || \
 		{ echo "MariaDB failed to start"; docker logs $(CONTAINER_NAME); exit 1; }
-	MARIADB_PORT=13306 bats test/e2e/
+	MARIADB_PORT=13306 CONTAINER_NAME=$(CONTAINER_NAME) bats test/e2e/
 	@docker rm -f $(CONTAINER_NAME)
 
 release: ## Create source tarball (VERSION=x.y.z)
