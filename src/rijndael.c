@@ -905,7 +905,7 @@ int rijndaelKeySetupDec(uint32 rk[/*4*(Nr + 1)*/], const uint8 cipherKey[],
 }
 
 
-void rijndaelEncrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+static void rijndaelEncrypt_sw(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
 		     const uint8 pt[16], uint8 ct[16])
 {
   uint32 s0, s1, s2, s3, t0, t1, t2, t3;
@@ -1148,7 +1148,7 @@ void rijndaelEncrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
 }
 
 
-void rijndaelDecrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+static void rijndaelDecrypt_sw(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
 		     const uint8 ct[16], uint8 pt[16])
 {
   uint32 s0, s1, s2, s3, t0, t1, t2, t3;
@@ -1390,6 +1390,112 @@ void rijndaelDecrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
        (Td4[(t0 ) & 0xff] & 0x000000ff) ^
        rk[3]);
   PUTuint32(pt + 12, s3);
+}
+
+
+/*
+  AES-NI hardware-accelerated implementation with runtime detection.
+  Available on x86/x86_64 processors with AES-NI support (Intel Westmere+,
+  AMD Bulldozer+). Falls back to software lookup-table implementation above.
+*/
+
+#if defined(__x86_64__) || defined(__i386__)
+#include <cpuid.h>
+#include <wmmintrin.h>
+#include <tmmintrin.h>
+
+static int _has_aesni(void) {
+  unsigned int eax, ebx, ecx, edx;
+  if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx))
+    return 0;
+  return (ecx >> 25) & 1;
+}
+
+/*
+  Round keys are stored as big-endian uint32 by the software key setup.
+  AES-NI operates on raw bytes, so we byte-swap each uint32 lane on load.
+  SSSE3 is guaranteed on all AES-NI capable processors.
+*/
+static const int8_t _bswap_mask_data[16] __attribute__((aligned(16))) =
+  {3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12};
+
+__attribute__((target("aes,ssse3")))
+static void rijndaelEncrypt_ni(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+                               const uint8 pt[16], uint8 ct[16])
+{
+  __m128i bswap = _mm_load_si128((const __m128i*)_bswap_mask_data);
+  __m128i block = _mm_loadu_si128((const __m128i*)pt);
+  int i;
+
+  block = _mm_xor_si128(block,
+    _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)rk), bswap));
+
+  for (i = 1; i < Nr; i++)
+    block = _mm_aesenc_si128(block,
+      _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(rk + 4*i)), bswap));
+
+  block = _mm_aesenclast_si128(block,
+    _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(rk + 4*Nr)), bswap));
+
+  _mm_storeu_si128((__m128i*)ct, block);
+}
+
+__attribute__((target("aes,ssse3")))
+static void rijndaelDecrypt_ni(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+                               const uint8 ct[16], uint8 pt[16])
+{
+  __m128i bswap = _mm_load_si128((const __m128i*)_bswap_mask_data);
+  __m128i block = _mm_loadu_si128((const __m128i*)ct);
+  int i;
+
+  block = _mm_xor_si128(block,
+    _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)rk), bswap));
+
+  for (i = 1; i < Nr; i++)
+    block = _mm_aesdec_si128(block,
+      _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(rk + 4*i)), bswap));
+
+  block = _mm_aesdeclast_si128(block,
+    _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(rk + 4*Nr)), bswap));
+
+  _mm_storeu_si128((__m128i*)pt, block);
+}
+
+#define HAS_AESNI_DISPATCH 1
+#endif /* x86/x86_64 */
+
+
+/* Dispatch: function pointers selected once at load time */
+
+typedef void (*rijndael_encrypt_fn)(const uint32*, int, const uint8*, uint8*);
+typedef void (*rijndael_decrypt_fn)(const uint32*, int, const uint8*, uint8*);
+
+static rijndael_encrypt_fn _encrypt_fn = NULL;
+static rijndael_decrypt_fn _decrypt_fn = NULL;
+
+__attribute__((constructor))
+static void _rijndael_init_dispatch(void) {
+#ifdef HAS_AESNI_DISPATCH
+  if (_has_aesni()) {
+    _encrypt_fn = rijndaelEncrypt_ni;
+    _decrypt_fn = rijndaelDecrypt_ni;
+    return;
+  }
+#endif
+  _encrypt_fn = rijndaelEncrypt_sw;
+  _decrypt_fn = rijndaelDecrypt_sw;
+}
+
+void rijndaelEncrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+                     const uint8 pt[16], uint8 ct[16])
+{
+  _encrypt_fn(rk, Nr, pt, ct);
+}
+
+void rijndaelDecrypt(const uint32 rk[/*4*(Nr + 1)*/], int Nr,
+                     const uint8 ct[16], uint8 pt[16])
+{
+  _decrypt_fn(rk, Nr, ct, pt);
 }
 
 #endif
