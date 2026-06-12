@@ -18,7 +18,7 @@ jobs:
       - name: Extract version from configure.ac
         id: version
         run: |
-          version=$(grep '^AC_INIT' configure.ac | sed 's/.*\[\([^]]*\)\].*/\1/' | head -1)
+          version=$(grep '^AC_INIT' configure.ac | sed 's/AC_INIT(\[[^]]*\], \[\([^]]*\)\].*/\1/')
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag exists
