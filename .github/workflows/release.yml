@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "[0-9]*"
+    branches:
+      - master
 
 jobs:
   release:
@@ -12,11 +12,36 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from configure.ac
+        id: version
+        run: |
+          version=$(grep '^AC_INIT' configure.ac | sed 's/.*\[\([^]]*\)\].*/\1/' | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag exists
+        id: check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build release tarball
-        run: make release VERSION=${GITHUB_REF_NAME}
+        if: steps.check.outputs.exists == 'false'
+        run: make release VERSION=${{ steps.version.outputs.version }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/lib_mysqludf_aes256-*.tar.gz
+      - name: Create tag and GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+          gh release create ${{ steps.version.outputs.version }} \
+            dist/lib_mysqludf_aes256-${{ steps.version.outputs.version }}.tar.gz \
+            --title "v${{ steps.version.outputs.version }}" \
+            --generate-notes
