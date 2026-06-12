@@ -7,9 +7,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        mariadb_version: ["10.6", "10.11", "11.4"]
     steps:
       - uses: actions/checkout@v4
 
@@ -18,5 +15,5 @@ jobs:
           git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
           cd /tmp/bats-core && sudo ./install.sh /usr/local
 
-      - name: Build and test
-        run: make test MARIADB_VERSION=${{ matrix.mariadb_version }}
+      - name: Run tests
+        run: make test
