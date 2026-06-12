@@ -28,7 +28,6 @@ release: ## Create source tarball (VERSION=x.y.z)
 	@echo "Created dist/lib_mysqludf_aes256-$(VERSION).tar.gz"
 
 clean: ## Remove build artifacts and test containers
-	@docker rm -f $(CONTAINER_NAME) 2>/dev/null || true
 	@docker rmi $(IMAGE_TAG) 2>/dev/null || true
 	rm -rf dist/
 
